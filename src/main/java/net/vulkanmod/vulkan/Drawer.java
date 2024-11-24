@@ -507,4 +507,82 @@ public class Drawer {
                 pAttachments = VkClearAttachment.callocStack(attachmentsCount, stack);
 
                 VkClearAttachment clearDepth = pAttachments.get(0);
-                clearDepth.aspectMask(VK_IMAGE_ASPECT_DEPTH_BIT)
+                clearDepth.aspectMask(VK_IMAGE_ASPECT_DEPTH_BIT);
+                clearDepth.clearValue(depthValue);
+            } else if (v == 0x4000) {
+                attachmentsCount = 1;
+
+                pAttachments = VkClearAttachment.callocStack(attachmentsCount, stack);
+
+                VkClearAttachment clearColor = pAttachments.get(0);
+                clearColor.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT);
+                clearColor.colorAttachment(0);
+                clearColor.clearValue(colorValue);
+            } else if (v == 0x4100) {
+                attachmentsCount = 2;
+
+                pAttachments = VkClearAttachment.callocStack(attachmentsCount, stack);
+
+                VkClearAttachment clearColor = pAttachments.get(0);
+                clearColor.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT);
+                clearColor.clearValue(colorValue);
+
+                VkClearAttachment clearDepth = pAttachments.get(1);
+                clearDepth.aspectMask(VK_IMAGE_ASPECT_DEPTH_BIT);
+                clearDepth.clearValue(depthValue);
+            } else {
+                throw new RuntimeException("unexpected value");
+            }
+
+            //Rect to clear
+            VkRect2D renderArea = VkRect2D.callocStack(stack);
+            renderArea.offset(VkOffset2D.callocStack(stack).set(0, 0));
+            renderArea.extent(getSwapchainExtent());
+
+            VkClearRect.Buffer pRect = VkClearRect.callocStack(1, stack);
+            pRect.get(0).rect(renderArea);
+            pRect.get(0).layerCount(1);
+
+            vkCmdClearAttachments(commandBuffer, pAttachments, pRect);
+        }
+    }
+
+    public static void setViewport(int x, int y, int width, int height) {
+
+        try(MemoryStack stack = stackPush()) {
+            VkViewport.Buffer viewport = VkViewport.callocStack(1, stack);
+            viewport.x(x);
+            viewport.y(height + y);
+            viewport.width(width);
+            viewport.height(-height);
+            viewport.minDepth(0.0f);
+            viewport.maxDepth(1.0f);
+
+            vkCmdSetViewport(commandBuffers.get(currentFrame), 0, viewport);
+        }
+
+    }
+
+    public static void pushDebugSection(String s) {
+//        VkCommandBuffer commandBuffer = commandBuffers.get(currentFrame);
+//
+//        try(MemoryStack stack = stackPush()) {
+//            VkDebugUtilsLabelEXT markerInfo = VkDebugUtilsLabelEXT.callocStack(stack);
+//            markerInfo.sType(VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT);
+//            ByteBuffer string = stack.UTF8(s);
+//            markerInfo.pLabelName(string);
+//            vkCmdBeginDebugUtilsLabelEXT(commandBuffer, markerInfo);
+//        }
+    }
+
+    public static void popDebugSection() {
+//        VkCommandBuffer commandBuffer = commandBuffers.get(currentFrame);
+//
+//        vkCmdEndDebugUtilsLabelEXT(commandBuffer);
+    }
+
+    public static void popPushDebugSection(String s) {
+        popDebugSection();
+        pushDebugSection(s);
+    }
+}
