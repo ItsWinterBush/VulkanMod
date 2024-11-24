@@ -1,8 +1,7 @@
 package net.vulkanmod.vulkan;
 
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import net.vulkanmod.vulkan.queue.CommandPool;
 import net.vulkanmod.vulkan.util.VUtil;
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VkDevice;
 
@@ -11,58 +10,53 @@ import java.nio.LongBuffer;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class Synchronization {
-    private static final int ALLOCATION_SIZE = 50;
+    private static final int allocSize = 20000;
+    private static final LongBuffer fences = MemoryUtil.memAllocLong(allocSize);
+    private static int idx = 0;
 
-    public static final Synchronization INSTANCE = new Synchronization(ALLOCATION_SIZE);
-
-    private final LongBuffer fences;
-    private int idx = 0;
-
-    private ObjectArrayList<CommandPool.CommandBuffer> commandBuffers = new ObjectArrayList<>();
-
-    Synchronization(int allocSize) {
-        this.fences = MemoryUtil.memAllocLong(allocSize);
-    }
-
-    public synchronized void addCommandBuffer(CommandPool.CommandBuffer commandBuffer) {
-        this.addFence(commandBuffer.getFence());
-        this.commandBuffers.add(commandBuffer);
-    }
-
-    public synchronized void addFence(long fence) {
-        if (idx == ALLOCATION_SIZE)
-            waitFences();
-
+    public synchronized static void addFence(long fence) {
         fences.put(idx, fence);
         idx++;
     }
 
-    public synchronized void waitFences() {
-        if (idx == 0)
-            return;
+    public synchronized static void waitFences() {
+//        TransferQueue.resetCurrent();
 
-        VkDevice device = Vulkan.getVkDevice();
+        if(idx == 0) return;
+
+        VkDevice device = Vulkan.getDevice();
 
         fences.limit(idx);
 
-        vkWaitForFences(device, fences, true, VUtil.UINT64_MAX);
+        int count = 50;
+        long[] longs = new long[count];
+        int i;
+        for (i = 0; i + count - 1 < idx; i += count) {
+            fences.position(i);
+            fences.get(longs, 0, count);
+            vkWaitForFences(device, longs, true, VUtil.UINT64_MAX);
+        }
+        if(idx - i > 0) {
+            longs = new long[idx - i];
+            fences.position(i);
+            fences.get(longs, 0, idx - i);
+            vkWaitForFences(device, longs, true, VUtil.UINT64_MAX);
+        }
 
-        this.commandBuffers.forEach(CommandPool.CommandBuffer::reset);
-        this.commandBuffers.clear();
+//        Profiler profiler = new Profiler("sync");
+//        profiler.start();
+//        vkWaitForFences(device, fences, true, VUtil.UINT64_MAX);
+//        profiler.push("wait");
+//        vkResetCommandPool(device, commandPool, 0);
+//        profiler.push("free");
 
-        fences.limit(ALLOCATION_SIZE);
+//        profiler.push("end");
+//        profiler.end();
+
+        TransferQueue.resetCurrent();
+
+        fences.limit(allocSize);
         idx = 0;
-    }
-
-    public static void waitFence(long fence) {
-        VkDevice device = Vulkan.getVkDevice();
-
-        vkWaitForFences(device, fence, true, VUtil.UINT64_MAX);
-    }
-
-    public static boolean checkFenceStatus(long fence) {
-        VkDevice device = Vulkan.getVkDevice();
-        return vkGetFenceStatus(device, fence) == VK_SUCCESS;
     }
 
 }
